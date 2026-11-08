@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SynapseOps - منصة المحاكاة الاستراتيجية للقرارات</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        darkbg: '#0a0f1d',
+                        cardbg: '#111827',
+                        bordercol: '#1f293d',
+                        accentred: '#f43f5e',
+                        accentgreen: '#10b981',
+                        accentamber: '#f59e0b'
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- html2pdf.js لإنشاء PDF تنفيذي -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Tajawal', sans-serif; }
+        [x-cloak] { display: none !important; }
+        
+        /* ضبط مخرجات الطباعة وملفات الـ PDF التنفيذية */
+        @media print {
+            .no-print { display: none !important; }
+            body { background: #0a0f1d !important; color: #f3f4f6 !important; }
+            .pdf-page-break { page-break-before: always; }
+            .agent-grid-print { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 1rem !important; }
+            .agent-tab-pane { display: block !important; }
+        }
+        .pdf-export-mode .agent-grid-print { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 1rem !important; }
+        .pdf-export-mode .agent-tab-pane { display: block !important; }
+    </style>
+</head>
+<body class="bg-darkbg text-gray-100 min-h-screen flex flex-col" x-data="synapseApp()" x-init="initApp()">
+
+    <!-- Header -->
+    <header class="border-b border-bordercol bg-cardbg/50 backdrop-blur sticky top-0 z-50 px-6 py-4 flex flex-wrap justify-between items-center gap-4 no-print">
+        <div class="flex items-center space-x-3 space-x-reverse">
+            <div class="w-9 h-9 rounded-lg bg-gradient-to-tr from-indigo-600 to-rose-500 flex items-center justify-center font-bold text-white shadow-lg">S</div>
+            <div>
+                <h1 class="font-bold text-lg tracking-wide text-white">SynapseOps <span class="text-xs text-indigo-400 font-normal px-2 py-0.5 bg-indigo-950/80 rounded border border-indigo-800">Enterprise AI</span></h1>
+                <p class="text-xs text-gray-400">محرك محاكاة القرارات الاستراتيجية والمخاطر المؤسسية</p>
+            </div>
+        </div>
+        
+        <!-- Controls: API Key & Model Status -->
+        <div class="flex items-center space-x-3 space-x-reverse">
+            <button @click="openKeyModal = true" class="text-xs px-3 py-1.5 rounded-lg border border-bordercol bg-darkbg text-gray-300 hover:border-indigo-500 transition flex items-center gap-1.5 cursor-pointer">
+                <svg class="w-3.5 h-3.5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+                <span x-text="apiKey ? 'تعديل Gemini Key' : 'إدخال مفتاح API'"></span>
+            </button>
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium" :class="apiKey ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-amber-950 text-amber-400 border border-amber-800'">
+                <span class="w-2 h-2 ml-1.5 rounded-full" :class="apiKey ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'"></span>
+                <span x-text="apiKey ? 'المحرك متصل بالذكاء الاصطناعي (Gemini)' : 'وضع المحاكاة الافتراضية (Sandbox)'"></span>
+            </span>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- Left Column: Strategic Input & Sensitivity Control -->
+        <div class="lg:col-span-1 space-y-6 no-print">
+            <div class="bg-cardbg border border-bordercol rounded-2xl p-5 shadow-xl space-y-4">
+                <h2 class="text-md font-semibold text-white flex items-center">
+                    <svg class="w-5 h-5 ml-2 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                    مدخلات القرار الاستراتيجي
+                </h2>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-300 mb-1">نص القرار المقترح:</label>
+                        <textarea x-model="decisionInput" rows="4" class="w-full bg-darkbg border border-bordercol rounded-xl p-3 text-sm text-gray-200 focus:outline-none focus:border-indigo-500 transition resize-none" placeholder="اكتب قرارك المؤسسي هنا..."></textarea>
+                    </div>
+
+                    <!-- What-If Sensitivity Adjusters -->
+                    <div class="p-3 bg-darkbg/70 border border-bordercol rounded-xl space-y-3">
+                        <span class="text-[11px] font-bold text-indigo-400 uppercase tracking-wider block">محددات الحساسية السريعة (What-If Parameters):</span>
+                        <div>
+                            <div class="flex justify-between text-xs text-gray-300 mb-1">
+                                <span>تغيير السعر:</span>
+                                <span class="font-bold text-indigo-400" x-text="`+${priceChange}%`"></span>
+                            </div>
+                            <input type="range" min="5" max="100" step="5" x-model="priceChange" @input="updateConfidenceEstimate" class="w-full accent-indigo-500 h-1.5 bg-cardbg rounded-lg cursor-pointer">
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-xs text-gray-300 mb-1">
+                                <span>فترة الإشعار المسبق:</span>
+                                <span class="font-bold text-indigo-400" x-text="`${noticeDays} يوماً`"></span>
+                            </div>
+                            <input type="range" min="15" max="180" step="15" x-model="noticeDays" @input="updateConfidenceEstimate" class="w-full accent-indigo-500 h-1.5 bg-cardbg rounded-lg cursor-pointer">
+                        </div>
+                    </div>
+
+                    <!-- Scenario Presets -->
+                    <div>
+                        <span class="block text-xs text-gray-400 mb-2">سيناريوهات قياسية:</span>
+                        <div class="space-y-1.5">
+                            <button @click="setPreset('scm_price_hike')" class="w-full text-right text-xs bg-darkbg/80 hover:bg-bordercol p-2.5 rounded-lg border border-bordercol text-gray-300 transition truncate block">
+                                📈 زيادة مفاجئة 35% وإلغاء الـ Freemium
+                            </button>
+                            <button @click="setPreset('cloud_lockin')" class="w-full text-right text-xs bg-darkbg/80 hover:bg-bordercol p-2.5 rounded-lg border border-bordercol text-gray-300 transition truncate block">
+                                🔒 إلزام العملاء بالترحيل السحابي القسري
+                            </button>
+                        </div>
+                    </div>
+
+                    <button @click="runSimulation" :disabled="isSimulating || !decisionInput.trim()" class="w-full py-3 bg-gradient-to-r from-indigo-600 to-rose-600 hover:from-indigo-500 hover:to-rose-500 disabled:opacity-50 text-white font-medium rounded-xl text-sm shadow-lg shadow-indigo-600/20 transition flex items-center justify-center space-x-2 space-x-reverse cursor-pointer">
+                        <svg x-show="isSimulating" class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        <span x-text="isSimulating ? 'غرفة العمليات تحاكي القرار...' : 'إجراء المحاكاة متعددة الوكلاء'"></span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Deconstruction Card -->
+            <div x-show="hasSimulated && result.deconstruct" x-cloak class="bg-cardbg border border-bordercol rounded-2xl p-5 shadow-xl space-y-3">
+                <h3 class="text-xs font-bold text-indigo-400 uppercase tracking-wider flex items-center">
+                    <span>🔍</span> تفكيك القرار المؤسسي (Deconstruct)
+                </h3>
+                <div class="space-y-2 text-xs">
+                    <div>
+                        <span class="text-gray-400 block font-medium">الإجراء الجوهري:</span>
+                        <p class="text-gray-200 mt-0.5 leading-relaxed" x-text="result.deconstruct?.core_action"></p>
+                    </div>
+                    <div>
+                        <span class="text-gray-400 block font-medium">السوق المستهدف:</span>
+                        <p class="text-gray-200 mt-0.5 leading-relaxed" x-text="result.deconstruct?.target_market"></p>
+                    </div>
+                    <div>
+                        <span class="text-gray-400 block font-medium">الأثر المالي المباشر:</span>
+                        <p class="text-gray-200 mt-0.5 leading-relaxed" x-text="result.deconstruct?.financial_impact"></p>
+                    </div>
+                    <div>
+                        <span class="text-gray-400 block font-medium">الجدول الزمني ومخاطر السرعة:</span>
+                        <p class="text-gray-200 mt-0.5 leading-relaxed" x-text="result.deconstruct?.timeline"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Results & Agent Simulation Output -->
+        <div class="lg:col-span-2 space-y-6">
+            
+            <!-- Empty State -->
+            <template x-if="!hasSimulated && !isSimulating">
+                <div class="bg-cardbg border border-bordercol rounded-2xl p-12 text-center h-full flex flex-col items-center justify-center min-h-[440px]">
+                    <div class="w-16 h-16 bg-indigo-950/60 border border-indigo-800 rounded-full flex items-center justify-center text-indigo-400 mb-4 shadow-inner">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                    </div>
+                    <h3 class="text-lg font-medium text-white mb-2">غرفة المحاكاة الاستراتيجية مستعدة</h3>
+                    <p class="text-sm text-gray-400 max-w-md">أدخل نص القرار الاستراتيجي في الجانب المقابل لتشغيل خوارزميات محاكاة السوق، ردود فعل المنافسين، المشرعين، والتدفقات المالية.</p>
+                </div>
+            </template>
+
+            <!-- Loading Simulation State -->
+            <template x-if="isSimulating">
+                <div class="bg-cardbg border border-bordercol rounded-2xl p-8 space-y-6">
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm font-medium text-indigo-400">محرك SynapseOps Core يقود المحاكاة...</span>
+                        <span class="text-xs text-gray-400" x-text="simStepText"></span>
+                    </div>
+                    <div class="w-full bg-darkbg h-2 rounded-full overflow-hidden border border-bordercol">
+                        <div class="bg-gradient-to-r from-indigo-500 via-purple-500 to-rose-500 h-full transition-all duration-300" :style="`width: ${simProgress}%`"></div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3 text-xs">
+                        <div class="p-3 rounded-xl bg-darkbg border border-bordercol flex items-center space-x-2 space-x-reverse" :class="simProgress >= 25 ? 'border-emerald-600/50 text-emerald-400' : 'text-gray-500'">
+                            <span>🤖</span> وكيل المنافسين يقيم حملات الاستقطاب
+                        </div>
+                        <div class="p-3 rounded-xl bg-darkbg border border-bordercol flex items-center space-x-2 space-x-reverse" :class="simProgress >= 50 ? 'border-emerald-600/50 text-emerald-400' : 'text-gray-500'">
+                            <span>⚖️</span> وكيل المشرع يراجع عقود الخدمة والامتثال
+                        </div>
+                        <div class="p-3 rounded-xl bg-darkbg border border-bordercol flex items-center space-x-2 space-x-reverse" :class="simProgress >= 75 ? 'border-emerald-600/50 text-emerald-400' : 'text-gray-500'">
+                            <span>👥</span> وكيل العملاء يحلل حساسية الأسعار والهروب
+                        </div>
+                        <div class="p-3 rounded-xl bg-darkbg border border-bordercol flex items-center space-x-2 space-x-reverse" :class="simProgress >= 95 ? 'border-emerald-600/50 text-emerald-400' : 'text-gray-500'">
+                            <span>📊</span> وكيل المالية والمخاطر يحسب السيولة
+                        </div>
+                    </div>
+                </div>
+            </template>
+
+            <!-- Printable & Exportable Report Container -->
+            <div id="pdfReportContainer" x-show="hasSimulated && !isSimulating" x-cloak class="space-y-6">
+                
+                <!-- Action Controls Bar (Hidden in Printed PDF) -->
+                <div class="flex items-center justify-between bg-cardbg border border-bordercol p-4 rounded-xl no-print">
+                    <span class="text-xs text-gray-400">تم إنتاج تقرير المحاكاة الاستراتيجية بنجاح</span>
+                    <div class="flex items-center gap-2">
+                        <button @click="exportMarkdown" class="px-3 py-1.5 text-xs bg-darkbg border border-bordercol hover:border-indigo-500 text-gray-200 rounded-lg transition flex items-center gap-1.5 cursor-pointer">
+                            <span>📝</span> تصدير Markdown
+                        </button>
+                        <button @click="exportPDF" class="px-4 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-lg transition shadow-lg shadow-indigo-600/30 flex items-center gap-1.5 cursor-pointer">
+                            <span>📄</span> تصدير ملف PDF تنفيذي
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Executive Summary & Strategic Confidence Score -->
+                <div class="bg-cardbg border border-bordercol rounded-2xl p-6 shadow-xl flex flex-col md:flex-row items-center justify-between gap-6">
+                    <div class="space-y-1 text-right w-full md:w-auto">
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs font-semibold px-2.5 py-0.5 rounded-full border"
+                                  :class="getRiskBadge(result.confidence_score).class" 
+                                  x-text="getRiskBadge(result.confidence_score).text">
+                            </span>
+                            <span class="text-xs text-gray-400" x-text="result.model_source"></span>
+                        </div>
+                        <h2 class="text-xl font-bold text-white pt-1">تقرير المحاكاة الاستراتيجية وتقييم القرار</h2>
+                        <p class="text-xs text-gray-400 leading-relaxed max-w-xl" x-text="result.summary"></p>
+                    </div>
+
+                    <!-- Confidence Meter Gauge -->
+                    <div class="flex items-center space-x-4 space-x-reverse bg-darkbg/80 border border-bordercol px-6 py-4 rounded-xl min-w-[210px] justify-center">
+                        <div class="text-center">
+                            <span class="block text-4xl font-black" :class="getScoreColor(result.confidence_score)">
+                                <span x-text="result.confidence_score"></span><span class="text-sm text-gray-500 font-normal">/100</span>
+                            </span>
+                            <span class="text-[11px] text-gray-400 font-medium">مؤشر الثقة الاستراتيجية</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Multi-Agent Risk Matrix Overview (Always Visible) -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                    <div class="bg-cardbg border border-bordercol p-3 rounded-xl space-y-1">
+                        <div class="flex justify-between text-gray-400">
+                            <span>هجوم المنافسين</span>
+                            <span class="font-bold text-rose-400" x-text="`${result.risk_levels?.competitor || 85}%`"></span>
+                        </div>
+                        <div class="w-full bg-darkbg h-1.5 rounded-full overflow-hidden">
+                            <div class="bg-rose-500 h-full" :style="`width: ${result.risk_levels?.competitor || 85}%`"></div>
+                        </div>
+                    </div>
+                    <div class="bg-cardbg border border-bordercol p-3 rounded-xl space-y-1">
+                        <div class="flex justify-between text-gray-400">
+                            <span>المخاطر القانونية</span>
+                            <span class="font-bold text-amber-400" x-text="`${result.risk_levels?.regulator || 70}%`"></span>
+                        </div>
+                        <div class="w-full bg-darkbg h-1.5 rounded-full overflow-hidden">
+                            <div class="bg-amber-500 h-full" :style="`width: ${result.risk_levels?.regulator || 70}%`"></div>
+                        </div>
+                    </div>
+                    <div class="bg-cardbg border border-bordercol p-3 rounded-xl space-y-1">
+                        <div class="flex justify-between text-gray-400">
+                            <span>معدل فقدان العملاء</span>
+                            <span class="font-bold text-rose-400" x-text="`${result.risk_levels?.churn || 68}%`"></span>
+                        </div>
+                        <div class="w-full bg-darkbg h-1.5 rounded-full overflow-hidden">
+                            <div class="bg-rose-500 h-full" :style="`width: ${result.risk_levels?.churn || 68}%`"></div>
+                        </div>
+                    </div>
+                    <div class="bg-cardbg border border-bordercol p-3 rounded-xl space-y-1">
+                        <div class="flex justify-between text-gray-400">
+                            <span>تقلبات السيولة (Cash)</span>
+                            <span class="font-bold text-indigo-400" x-text="`${result.risk_levels?.cash_volatility || 60}%`"></span>
+                        </div>
+                        <div class="w-full bg-darkbg h-1.5 rounded-full overflow-hidden">
+                            <div class="bg-indigo-500 h-full" :style="`width: ${result.risk_levels?.cash_volatility || 60}%`"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4 Agent Perspectives (Interactive Tabs in Web / Unified 2x2 Grid in PDF) -->
+                <div class="bg-cardbg border border-bordercol rounded-2xl p-6 shadow-xl space-y-4" x-data="{ activeTab: 'competitor' }">
+                    
+                    <!-- Web Nav Tabs (Hidden in PDF) -->
+                    <div class="flex border-b border-bordercol space-x-4 space-x-reverse overflow-x-auto pb-1 text-xs font-semibold no-print">
+                        <button @click="activeTab = 'competitor'" :class="activeTab === 'competitor' ? 'border-indigo-500 text-indigo-400' : 'border-transparent text-gray-400 hover:text-gray-200'" class="pb-3 border-b-2 transition whitespace-nowrap">
+                            🤖 رد فعل المنافسين
+                        </button>
+                        <button @click="activeTab = 'regulator'" :class="activeTab === 'regulator' ? 'border-indigo-500 text-indigo-400' : 'border-transparent text-gray-400 hover:text-gray-200'" class="pb-3 border-b-2 transition whitespace-nowrap">
+                            ⚖️ المشرع والقانون
+                        </button>
+                        <button @click="activeTab = 'consumer'" :class="activeTab === 'consumer' ? 'border-indigo-500 text-indigo-400' : 'border-transparent text-gray-400 hover:text-gray-200'" class="pb-3 border-b-2 transition whitespace-nowrap">
+                            👥 سلوك المشترين والعملاء
+                        </button>
+                        <button @click="activeTab = 'risk'" :class="activeTab === 'risk' ? 'border-indigo-500 text-indigo-400' : 'border-transparent text-gray-400 hover:text-gray-200'" class="pb-3 border-b-2 transition whitespace-nowrap">
+                            📊 المالية والمخاطر التشغيلية
+                        </button>
+                    </div>
+
+                    <!-- Container switches to Grid during Print/PDF -->
+                    <div class="agent-grid-print space-y-3 md:space-y-0 text-sm">
+                        <!-- Competitor -->
+                        <div class="agent-tab-pane p-3 rounded-xl bg-darkbg/40 border border-bordercol" :class="isExportingPDF ? '' : (activeTab === 'competitor' ? 'block' : 'hidden')">
+                            <span class="text-xs font-bold text-rose-400 block mb-1.5 flex items-center gap-1.5">
+                                <span>🤖</span> [Competitor Agent] استراتيجيات الاستحواذ والهجوم المعاكس:
+                            </span>
+                            <p class="text-xs sm:text-sm text-gray-300 leading-relaxed" x-text="result.agents?.competitor"></p>
+                        </div>
+                        <!-- Regulator -->
+                        <div class="agent-tab-pane p-3 rounded-xl bg-darkbg/40 border border-bordercol" :class="isExportingPDF ? '' : (activeTab === 'regulator' ? 'block' : 'hidden')">
+                            <span class="text-xs font-bold text-amber-400 block mb-1.5 flex items-center gap-1.5">
+                                <span>⚖️</span> [Regulator Agent] الامتثال، العقود (MSAs)، والنزاعات التنظيمية:
+                            </span>
+                            <p class="text-xs sm:text-sm text-gray-300 leading-relaxed" x-text="result.agents?.regulator"></p>
+                        </div>
+                        <!-- Customer -->
+                        <div class="agent-tab-pane p-3 rounded-xl bg-darkbg/40 border border-bordercol" :class="isExportingPDF ? '' : (activeTab === 'consumer' ? 'block' : 'hidden')">
+                            <span class="text-xs font-bold text-rose-400 block mb-1.5 flex items-center gap-1.5">
+                                <span>👥</span> [Customer Behavior Agent] حساسية الأسعار ومعدلات التراجع (Churn):
+                            </span>
+                            <p class="text-xs sm:text-sm text-gray-300 leading-relaxed" x-text="result.agents?.customer"></p>
+                        </div>
+                        <!-- Risk & Finance -->
+                        <div class="agent-tab-pane p-3 rounded-xl bg-darkbg/40 border border-bordercol" :class="isExportingPDF ? '' : (activeTab === 'risk' ? 'block' : 'hidden')">
+                            <span class="text-xs font-bold text-indigo-400 block mb-1.5 flex items-center gap-1.5">
+                                <span>📊</span> [Risk & Finance Agent] التدفقات النقدية والضغوط التشغيلية:
+                            </span>
+                            <p class="text-xs sm:text-sm text-gray-300 leading-relaxed" x-text="result.agents?.risk_finance"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Scenario Analysis (3 Outcomes) -->
+                <div class="bg-cardbg border border-bordercol rounded-2xl p-6 shadow-xl space-y-4">
+                    <h3 class="text-xs font-bold text-white uppercase tracking-wider flex items-center">
+                        <span>🎯</span> تحليل السيناريوهات الثلاثة (Scenario Analysis)
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                        <div class="p-4 rounded-xl bg-emerald-950/20 border border-emerald-900/40 space-y-2">
+                            <div class="flex items-center justify-between text-emerald-400 font-bold">
+                                <span>السيناريو الأفضل (Best-Case)</span>
+                                <span>🟢</span>
+                            </div>
+                            <p class="text-gray-300 leading-relaxed" x-text="result.scenarios?.best"></p>
+                        </div>
+                        <div class="p-4 rounded-xl bg-amber-950/20 border border-amber-900/40 space-y-2">
+                            <div class="flex items-center justify-between text-amber-400 font-bold">
+                                <span>الأكثر ترجيحاً (Most-Likely)</span>
+                                <span>🟡</span>
+                            </div>
+                            <p class="text-gray-300 leading-relaxed" x-text="result.scenarios?.most_likely"></p>
+                        </div>
+                        <div class="p-4 rounded-xl bg-rose-950/20 border border-rose-900/40 space-y-2">
+                            <div class="flex items-center justify-between text-rose-400 font-bold">
+                                <span>السيناريو الأسوأ (Worst-Case)</span>
+                                <span>🔴</span>
+                            </div>
+                            <p class="text-gray-300 leading-relaxed" x-text="result.scenarios?.worst"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Actionable Mitigation Strategies -->
+                <div class="bg-gradient-to-br from-indigo-950/30 to-cardbg border border-indigo-900/40 rounded-2xl p-6 shadow-xl space-y-4">
+                    <h3 class="text-md font-bold text-white flex items-center">
+                        <svg class="w-5 h-5 ml-2 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        استراتيجية إعادة الهيكلة والتخفيف (Mitigation Actions)
+                    </h3>
+                    <ul class="space-y-2 text-xs sm:text-sm text-gray-300 list-disc list-inside leading-relaxed">
+                        <template x-for="(strategy, idx) in result.mitigation" :key="idx">
+                            <li x-text="strategy"></li>
+                        </template>
+                    </ul>
+                </div>
+
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Modal: API Key Configuration -->
+    <div x-show="openKeyModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm no-print">
+        <div class="bg-cardbg border border-bordercol rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl" @click.away="openKeyModal = false">
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+                <span>🔑</span> إعداد مفتاح Google Gemini API
+            </h3>
+            <p class="text-xs text-gray-400 leading-relaxed">
+                لإجراء محاكاة استراتيجية حية لأي قرار تدخله، أدخل مفتاح Gemini API. يُحفظ المفتاح داخل متصفحك محلياً بشكل آمن (`localStorage`).
+            </p>
+            <input type="password" x-model="apiKeyInput" placeholder="AIzaSy..." class="w-full bg-darkbg border border-bordercol rounded-xl p-3 text-sm text-gray-200 focus:outline-none focus:border-indigo-500">
+            <div class="flex justify-end gap-2 pt-2">
+                <button @click="openKeyModal = false" class="px-4 py-2 text-xs rounded-lg text-gray-400 hover:text-white cursor-pointer">إلغاء</button>
+                <button @click="saveApiKey" class="px-5 py-2 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer">حفظ المفتاح</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Engine Logic -->
+    <script>
+        function synapseApp() {
+            return {
+                apiKey: '',
+                apiKeyInput: '',
+                openKeyModal: false,
+                isExportingPDF: false,
+                priceChange: 35,
+                noticeDays: 30,
+                decisionInput: 'نحن شركة برمجيات B2B تقدم حلول إدارة سلاسل الإمداد. نخطط لزيادة أسعار الاشتراكات الشهرية بنسبة 35% لجميع العملاء الحاليين، وإلغاء الباقة المجانية، وتحويل الميزات الأساسية إلى خدمات مدفوعة خلال 30 يوماً.',
+                isSimulating: false,
+                hasSimulated: false,
+                simProgress: 0,
+                simStepText: 'جاري تهيئة الوكلاء...',
+                result: {},
+
+                initApp() {
+                    const savedKey = localStorage.getItem('synapse_gemini_key');
+                    if (savedKey) {
+                        this.apiKey = savedKey;
+                        this.apiKeyInput = savedKey;
+                    }
+                },
+
+                saveApiKey() {
+                    this.apiKey = this.apiKeyInput.trim();
+                    localStorage.setItem('synapse_gemini_key', this.apiKey);
+                    this.openKeyModal = false;
+                },
+
+                setPreset(type) {
+                    if (type === 'scm_price_hike') {
+                        this.priceChange = 35;
+                        this.noticeDays = 30;
+                        this.decisionInput = 'زيادة أسعار الاشتراك بنسبة 35% لجميع عملاء حلول سلاسل الإمداد B2B، وإلغاء الباقة المجانية بالكامل وجعل الميزات الأساسية مدفوعة خلال 30 يوماً.';
+                    } else if (type === 'cloud_lockin') {
+                        this.priceChange = 50;
+                        this.noticeDays = 15;
+                        this.decisionInput = 'إجبار عملاء المؤسسات على ترحيل بياناتهم الحساسة إلى خوادمنا السحابية الخاصة حصراً مع منع التصدير المحلي، وتطبيق غرامات فسخ عقد بنسبة 50%.';
+                    }
+                },
+
+                updateConfidenceEstimate() {
+                    if (!this.hasSimulated) return;
+                    // Dynamic sensitivity heuristic calculation
+                    let base = 75;
+                    base -= (this.priceChange * 0.85); // High price hikes penalize heavily
+                    base += (this.noticeDays * 0.25);   // Longer transition softens impact
+                    this.result.confidence_score = Math.max(12, Math.min(92, Math.round(base)));
+                },
+
+                getScoreColor(score) {
+                    if (score <= 35) return 'text-rose-500';
+                    if (score <= 65) return 'text-amber-500';
+                    return 'text-emerald-500';
+                },
+
+                getRiskBadge(score) {
+                    if (score <= 35) {
+                        return { text: 'عالي المخاطر (High Risk)', class: 'bg-rose-950 text-rose-400 border-rose-800' };
+                    } else if (score <= 65) {
+                        return { text: 'مخاطر معتدلة (Medium Risk)', class: 'bg-amber-950 text-amber-400 border-amber-800' };
+                    } else {
+                        return { text: 'قرار مستقر استراتيجياً (Viable)', class: 'bg-emerald-950 text-emerald-400 border-emerald-800' };
+                    }
+                },
+
+                exportPDF() {
+                    this.isExportingPDF = true;
+                    const element = document.getElementById('pdfReportContainer');
+                    element.classList.add('pdf-export-mode');
+
+                    const opt = {
+                        margin:       [0.3, 0.3, 0.3, 0.3],
+                        filename:     `SynapseOps_Executive_Report_${Date.now()}.pdf`,
+                        image:        { type: 'jpeg', quality: 0.98 },
+                        html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#0a0f1d' },
+                        jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+                    };
+
+                    setTimeout(() => {
+                        html2pdf().set(opt).from(element).save().then(() => {
+                            element.classList.remove('pdf-export-mode');
+                            this.isExportingPDF = false;
+                        }).catch(() => {
+                            element.classList.remove('pdf-export-mode');
+                            this.isExportingPDF = false;
+                        });
+                    }, 200);
+                },
+
+                exportMarkdown() {
+                    const r = this.result;
+                    const mdContent = `# تقرير المحاكاة الاستراتيجية - SynapseOps Enterprise AI
+**تاريخ المحاكاة:** ${new Date().toLocaleDateString('ar-SA')}
+**مؤشر الثقة الاستراتيجية:** ${r.confidence_score}/100
+
+## 1. تفكيك القرار (Deconstruct)
+- **الإجراء الجوهري:** ${r.deconstruct?.core_action || ''}
+- **السوق المستهدف:** ${r.deconstruct?.target_market || ''}
+- **الأثر المالي المتوقع:** ${r.deconstruct?.financial_impact || ''}
+- **الجدول الزمني ومخاطر السرعة:** ${r.deconstruct?.timeline || ''}
+
+## 2. تحليلات الوكلاء الأربعة (Multi-Agent Simulation)
+- **وكيل المنافسين:** ${r.agents?.competitor || ''}
+- **المشرع والقانون:** ${r.agents?.regulator || ''}
+- **سلوك العملاء:** ${r.agents?.customer || ''}
+- **المالية والمخاطر:** ${r.agents?.risk_finance || ''}
+
+## 3. تحليل السيناريوهات (Scenario Analysis)
+- **السيناريو الأفضل:** ${r.scenarios?.best || ''}
+- **الأكثر ترجيحاً:** ${r.scenarios?.most_likely || ''}
+- **السيناريو الأسوأ:** ${r.scenarios?.worst || ''}
+
+## 4. خطة التخفيف الاستراتيجية (Mitigation Strategies)
+${r.mitigation ? r.mitigation.map(item => `- ${item}`).join('\n') : ''}
+`;
+                    const blob = new Blob([mdContent], { type: 'text/markdown;charset=utf-8;' });
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = `SynapseOps_Report_${Date.now()}.md`;
+                    link.click();
+                },
+
+                async runSimulation() {
+                    if (!this.decisionInput.trim()) return;
+
+                    this.isSimulating = true;
+                    this.hasSimulated = false;
+                    this.simProgress = 15;
+                    this.simStepText = 'استدعاء وكلاء المحاكاة وتفكيك القرار...';
+
+                    if (!this.apiKey) {
+                        this.simulateOffline();
+                        return;
+                    }
+
+                    try {
+                        const progressTimer = setInterval(() => {
+                            if (this.simProgress < 90) {
+                                this.simProgress += 15;
+                                if (this.simProgress >= 40) this.simStepText = 'فحص استجابة وكيل المنافسين والمشرع...';
+                                if (this.simProgress >= 70) this.simStepText = 'محاكاة معدلات الخسارة والسيولة النقدية...';
+                            }
+                        }, 350);
+
+                        const systemPrompt = `You are SynapseOps Core Simulator, an enterprise AI strategic decision engine.
+Evaluate the given business strategic decision and respond ONLY with valid JSON in Arabic with the following schema:
+{
+  "deconstruct": {
+    "core_action": "توصيف الإجراء الجوهري",
+    "target_market": "السوق المستهدف والمتأثر",
+    "financial_impact": "الأثر المالي المتوقع",
+    "timeline": "الجدول الزمني ومخاطر سرعة التنفيذ"
+  },
+  "risk_levels": {
+    "competitor": 85,
+    "regulator": 70,
+    "churn": 68,
+    "cash_volatility": 65
+  },
+  "agents": {
+    "competitor": "توقعات رد فعل المنافسين وحملات الاستحواذ المضادة",
+    "regulator": "المخاطر القانونية، عقود MSAs والنزاعات التنظيمية",
+    "customer": "سلوك العملاء ومعدلات هروبهم وتأثر الثقة",
+    "risk_finance": "المخاطر التشغيلية، التدفقات النقدية وعنق الزجاجة"
+  },
+  "scenarios": {
+    "best": "السيناريو الأفضل",
+    "most_likely": "السيناريو الأكثر ترجيحاً",
+    "worst": "السيناريو الأسوأ"
+  },
+  "confidence_score": 24,
+  "summary": "ملخص تنفيذي موجز ومباشر حول خطورة أو جدوى القرار",
+  "mitigation": [
+    "توصية تخفيف استراتيجية 1",
+    "توصية تخفيف استراتيجية 2",
+    "توصية تخفيف استراتيجية 3"
+  ]
+}`;
+
+                        // Using Gemini 2.5 Flash as the standard responsive model
+                        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${this.apiKey}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                contents: [
+                                    {
+                                        role: "user",
+                                        parts: [
+                                            { text: systemPrompt },
+                                            { text: `Decision Input to Evaluate: "${this.decisionInput}"` }
+                                        ]
+                                    }
+                                ],
+                                generationConfig: {
+                                    response_mime_type: "application/json",
+                                    temperature: 0.2
+                                }
+                            })
+                        });
+
+                        clearInterval(progressTimer);
+
+                        if (!response.ok) {
+                            throw new Error('API Request Failed');
+                        }
+
+                        const data = await response.json();
+                        const rawText = data.candidates[0].content.parts[0].text;
+                        const parsed = JSON.parse(rawText);
+
+                        this.simProgress = 100;
+                        this.result = {
+                            ...parsed,
+                            model_source: 'تحليل حي مباشر (Gemini 2.5 Flash Engine)'
+                        };
+                        this.isSimulating = false;
+                        this.hasSimulated = true;
+
+                    } catch (error) {
+                        console.warn('API connection issue, fallback to offline sandbox model', error);
+                        this.simulateOffline();
+                    }
+                },
+
+                simulateOffline() {
+                    const steps = [
+                        { progress: 30, text: 'وكيل المنافسين يفحص حروب الأسعار...' },
+                        { progress: 60, text: 'وكيل المشرع يراجع عقود الخدمة والنزاعات...' },
+                        { progress: 85, text: 'وكيل المستهلك والمالية يحللان الحسابات...' },
+                        { progress: 100, text: 'توليد مؤشر الثقة وصياغة التقرير...' }
+                    ];
+
+                    let currentStep = 0;
+                    const interval = setInterval(() => {
+                        if (currentStep < steps.length) {
+                            this.simProgress = steps[currentStep].progress;
+                            this.simStepText = steps[currentStep].text;
+                            currentStep++;
+                        } else {
+                            clearInterval(interval);
+                            this.isSimulating = false;
+                            this.hasSimulated = true;
+                            
+                            this.result = {
+                                model_source: 'محرك المحاكاة المؤسسي الافتراضي (Sandbox Engine)',
+                                confidence_score: 24,
+                                summary: 'القرار يحمل مخاطر تشغيلية وتعاقدية جسيمة بسبب قصر المهلة (30 يوماً) وجعل الميزات الجوهرية مدفوعة بدون مرحلة انتقالية.',
+                                deconstruct: {
+                                    core_action: 'زيادة موحدة بنسبة 35%، إلغاء الخطة المجانية تماماً، وجعل الوظائف الأساسية السابقة مدفوعة.',
+                                    target_market: 'قاعدة عملاء برمجيات سلاسل الإمداد الحالية (B2B) من الشركات الناشئة والمتوسطة والمؤسسات الكبرى.',
+                                    financial_impact: 'محاولة فورية لرفع متوسط الإيراد لكل مستخدم (ARPU)، يقابلها خطر تراجع حاد في الإيراد التكراري الصافي (NRR).',
+                                    timeline: 'مهلة 30 يوماً فقط، وهي فترة حرجة لا تتطابق مع دورات ميزانيات الشركات B2B.'
+                                },
+                                risk_levels: {
+                                    competitor: 88,
+                                    regulator: 74,
+                                    churn: 70,
+                                    cash_volatility: 64
+                                },
+                                agents: {
+                                    competitor: 'سيطلق المنافسون المباشرون فوراً حملات موجهة (Conquest Campaigns) مع عروض ترحيل مجانية وتخفيض 50% لأول 6 أشهر، مما يهدد الاستحواذ على قاعدة عملائك المغادرة.',
+                                    regulator: 'مهلة 30 يوماً تخالف عقود المؤسسات القياسية (MSAs) التي تتطلب إشعاراً بين 60-90 يوماً. خطر التعرض لدعاوى قضائية حول احتجاز البيانات وممارسات التجارة غير العادلة.',
+                                    customer: 'فقدان الثقة الاستراتيجية في المورد وتحوله إلى "عنصر مخاطرة". المشتريات ستفتح مناقصات بديلة عاجلة ومغادرة واسعة للشريحة الحساسة للأسعار.',
+                                    risk_finance: 'تجميد مدفوعات الذمم المدينة (AR) نتيجة اعتراضات الفواتير، وارتفاع هائل بنسبة 400% في تذاكر الدعم والاعتراضات، مما يلتهم أي هوامش متوقعة.'
+                                },
+                                scenarios: {
+                                    best: 'بقاء 85% من العملاء نتيجة صعوبة استبدال أنظمة سلاسل الإمداد فوراً، مع زيادة قصيرة المدى في الإيرادات بنسبة 15%.',
+                                    most_likely: 'معدل إلغاء اشتراكات (Churn) يتراوح بين 25-35% في قطاع الشركات المتوسطة، وتراجع صافي الإيرادات خلال أول 90 يوماً.',
+                                    worst: 'خروج جماعي يتجاوز 50% من العملاء، ونزاعات تعاقدية مع كبار العملاء وتشويه سمعة العلامة التجارية في السوق.'
+                                },
+                                mitigation: [
+                                    'تمديد المهلة الزمنية من 30 يوماً إلى 90-120 يوماً لتتوافق مع دورات ميزانيات الشركات.',
+                                    'استبقاء الميزات الأساسية للعملاء الحاليين (Grandfathering) وتطبيق الرسوم الجديدة فقط على الميزات الحديثة أو الإضافية.',
+                                    'تحويل الباقة المجانية إلى فترة تجريبية مدتها 30 يوماً مع توفير خطة مخفضة لضمان استمرار تدفق العملاء المحتملين.'
+                                ]
+                            };
+                        }
+                    }, 400);
+                }
+            }
+        }
+    </script>
+</body>
+</html>
